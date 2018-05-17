@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+	<meta charset="utf-8">
+	<script src="http://code.jquery.com/jquery-2.1.4.min.js"></script>
+	<script type="text/javascript" src="jquery.countup.js"></script>
+	<title>JQを使った間違い探し</title>
+	<style>
+		span{
+			cursor:pointer;
+		}
+		.mr10{
+			margin-right:10px;
+		}
+		.red {
+			color: #f00;
+		}
+		.green {
+			color: #0f0;
+		}
+		.blue {
+			color: #00f;
+		}
+		.black {
+			color: #000!important;
+		}
+		.yellow {
+			color: #ff0;
+		}
+		.purple {
+			color: #f0f;
+		}
+		#dmg {
+			margin-left: 10px;
+			position: relative;
+		}
+	</style>
+</head>
+<body>
+	<h1>間違い探しシステム</h1>
+	<p>
+	<input type="button" value="初級" onclick="clearGame();gameStart(1);" class = "mr10">
+	<input type="button" value="中級" onclick="clearGame();gameStart(2);" class = "mr10">
+	<input type="button" value="上級" onclick="clearGame();gameStart(3);" class = "mr10">
+	<span id="time"></span><span id="dmg"></span>
+	</p>
+	<p id="score"></p>
+	<div id="cells"></div>
+	<script>
+		var games = [
+			["○", "●"],
+			["□", "■"],
+			["△", "▲"]
+		];
+		var level =0;
+		var MAX_LEVEL = games.length -1;
+		var DIM_FIRST = 5;
+		var DIM_DELTA = 3;
+		var dim = DIM_FIRST;
+		var t1;
+		var t2;
+		var dummy = games[level][0];
+		var seikai = games[level][1];
+		var chars = [];
+		var clear =1;
+		var mm;
+		var idNumber = 1;
+		//いらない
+		//var gameStartTimes =1;
+		var mustFirst;
+		var mustSecond;
+		var mustThird;
+		var speed;
+		var colors = ["red", "blue", "green", "yellow", "purple"];
+		var timeInterval;
+		var timeCount = 0;
+
+		function gameStart(difficulty){
+			//グローバル変数で使用しているが、ゲームが終了した後に実行されるgameStart();を呼び出したときに1で初期化しないと、
+			//タグの生成、配列にdummyを追加する処理がうまくいかないため1で初期化。
+			idNumber = 1;
+
+			//ゲームをクリアしたときスコアとクリアするまでに費やした時間をクリア。
+			if(level ==0){
+				$("#score").empty();
+				$("#time").empty();
+				//開始ボタンを押下してから、クリアするまでの時間を測るためのt1。
+				t1 = new Date().getTime();
+				var nowtime = new Date();
+			}
+			
+			dummy = games[level][0];
+			seikai = games[level][1];
+			
+			//間違い探しが行われる形を作成し、タグを作成。
+			var cells = ' ';
+			for(var i = 0; i <= dim; i++){
+				for(var j = 0; j <= i; j++){
+					//出力される間違い・当たり分spanタグを作成。
+					//spanタグのidがs1、s2、s3・・・と作成される。
+					//+=と指定いる為、spanタグがcellsに格納されていき、
+					//まとめて$("#cells").html(cells)で格納
+					cells += '<span id ="s'+idNumber+'"></span>';
+					idNumber++;
+				}
+				cells += '<br/>';
+			}
+			$("#cells").html(cells);
+		
+			//配列charsにはずれをidNumber個格納
+			chars = [];
+			for(var i = 1; i < idNumber; i++){
+				//配列の末尾に引数に指定した要素を追加
+				chars.push(dummy);
+			}
+
+			timeInterval = setInterval(function(){
+				timeCount++;
+				$("#time").text((timeCount / 100).toFixed(2) + "s");
+			}, 10);
+			
+			//難易度を設定
+			//難易度が初級ならスピードが0.5秒
+			if(difficulty == 1){
+				speed = 500;
+			//難易度が中級ならスピードが0.1秒
+			} else if (difficulty == 2){
+				speed = 100;
+			//難易度が上級ならスピードが0.03秒
+			} else if (difficulty == 3){
+				speed = 30;
+			}
+			
+			//setIntervalは下記の処理を行ったあとspeed秒後にDrawing()の処理を行う。
+			//何回Drawing()を実行するかは、Drawing()の中で記述している
+			mm = setInterval('Drawing()', speed);
+
+			//当たりを3回押したら、１めんクリアとするための変数。
+			var collectTimes = 1;
+			
+			for(var i = 1; i <= chars.length; i++){
+				//生成されたspanタグに間違いの記号・正解記号を挿入し、画面上に出力させる。
+				$("#s"+i).text(chars[i -1]);
+				//間違いの記号・正解の記号を押下したときの処理
+				$("#s"+i).click(function(){
+					/*
+					正解をはじめて押し、かつ最初に出力された正解の記号が最初に出力された正解記号のidであるならば、下記のif内の処理を行う。
+					mustFirstは、Drawing()が初めて実行されたとき(clear =1※グローバル変数)、乱数を発生させ、その乱数が代入されている。
+					chars配列のその乱数番目の中身を削除し、正解の記号を入れているので、乱数+1(配列は0番目から始まっているから+1)が押下された正解のidであれば、
+					if文内の処理を実行できる為、正解押下回数が1回目、2回目、3回目と判別することができる。
+					*/
+					if(collectTimes ==1 && "s"+(mustFirst +1) == $(this).attr("id")){
+						//最初に押下されたspanタグのidが、cssクラスのブラックを削除。
+						$(this).removeClass("black");
+						//正解記号を正解を押したspanタグに出力させる
+						$(this).text(seikai);
+						//2回目の正解を押したときの判定の為にインクリメント
+						collectTimes++;
+					} else if (collectTimes == 2 && "s"+(mustSecond +1) == $(this).attr("id")){
+						$(this).removeClass("black");
+						$(this).text(seikai);
+						//3回目の正解を押したときの判定の為にインクリメント
+						collectTimes++;
+					} else if (collectTimes == 3 && "s"+(mustThird +1) == $(this).attr("id")){
+						$(this).removeClass("black");
+						$(this).text(seikai);
+						//正解を3回おすと1めんクリアなので、クリアごとに難易度を上げる為に変数levelをインクリメント
+						level++;
+						//DIM_DELTAを+=することにより、1めんクリアするごとに記号が縦横３こ増えていく。
+						dim += DIM_DELTA;
+							//この場合、levelが3になればif文内の処理を実行。配列gamesの要素を増やせばその分難易度も上がる(縦横の記号の数が増える)
+							//最後のめんをクリアしたときに処理。
+							if(level > MAX_LEVEL){
+								//カウントを停止させる。
+								clearInterval(timeInterval);
+								//idがtimeのタグに記述されている内容をブランクにする。
+								$("#time").empty();
+								//idがscoreのタグにクリアまでにかかった時間を出力
+								$("#score").text("score is " + (timeCount / 100).toFixed(2) + "s");
+
+								//ここいらない
+								//level = 0;
+								//ここいらない
+								//dim = DIM_FIRST;
+								
+								$("#cells").empty();
+								
+								//ここいらない
+								//timeCount = 0;
+
+								return;
+							}
+						//いらない
+						//gameStartTimes++;
+					
+						clearInterval(timeInterval);
+						//１めんクリアしたら引数にdifficulty(正解の表示スピード)を渡してあげ、レベルアップした状態（出力記号が増加）で次のめんを出力
+						gameStart(difficulty);
+					} else {
+						// 間違え押下で1秒追加（追加アニメーション）
+						timeCount += 100;
+						var dmgContent = $("<span>");
+						dmgContent.text("+1s");
+						dmgContent.css({position: "absolute", bottom: "-10px", opacity: 1});
+						$("#dmg").append(dmgContent);
+						
+						//500って何を意味してる？
+						dmgContent.animate({
+							bottom: "10px",
+							opacity: 0
+						}, 500);
+					}
+				});
+
+			}
+		}
+		
+		//144行目まで処理した後、137行目のsetInterval('Drawing()', speed);で第一引数で指定しているDrawing()が実行
+		function Drawing(){
+			//最初にDrawing()を実行するときはclearは１である。
+			if(clear == 1){
+				//配列charsの要素までの範囲で、配列を発生させる。
+				var firstCollect = Math.floor(Math.random() * chars.length);
+				//配列charsの中身を、先ほど取得した乱数番目を正解の記号に変える
+				chars.splice(firstCollect, 1, seikai);
+				mustFirst = firstCollect;
+				
+				// 色変え
+				// 乱数+1を引数で指定する事により、どこのspanタグidに対して色を変えるのか判別。
+				//今回は最初に出力された正解記号の乱数を引数で渡している。
+				chgColor(mustFirst + 1);
+			}else if(clear == 2){
+				var secondCollect = Math.floor(Math.random() * chars.length);
+				//乱数mustFirst(1回目に出力される正解記号のid)とsecondCollect(2回目に出力される正解記号のid)が一緒ならば、if文内の処理を行う。
+				//この処理を行う事により、乱数の重複が防げる為、最初に出力された正解記号と2回目に出力された正解記号が重ならない。
+				if(mustFirst == secondCollect){
+					while(mustFirst == secondCollect){
+						secondCollect = Math.floor(Math.random()*chars.length);
+					}
+				}
+				//重複していない乱数を取得した後、配列charsに正解記号を入れる。
+				chars.splice(secondCollect, 1, seikai);
+				mustSecond = secondCollect;
+				
+				// 色変え
+				chgColor(mustSecond + 1);
+			} else if(clear == 3){
+				var thirdCollect = Math.floor(Math.random() * chars.length);
+				//233行目と同じ。乱数の重複を防ぐ処理。
+				 if(mustFirst == thirdCollect || mustSecond == thirdCollect){
+					while(mustFirst == thirdCollect || mustSecond == thirdCollect){
+						thirdCollect = Math.floor(Math.random() * chars.length);
+					}
+				}
+				chars.splice(thirdCollect, 1, seikai);
+				mustThird = thirdCollect;
+				
+				// 色変え
+				chgColor(mustThird + 1);
+				
+				// 答え削除
+				//3こ正解が出力されたら、正解記号をはずれと同じ記号にする。
+				//関数setTimeoutは変数speed秒後に、262～270行目までを実行する。setInterval同様最後まで(284行目まで)実行した後、speed秒後に実行される
+				//画面上では、正解が3つ出力された後で実行される。
+				setTimeout(function(){
+					for(var i = 1; i <= chars.length; i++){
+						// 色変え
+						if ($("#s"+i).text() == seikai) {
+							//正解のidにcssのblackを追加。色を配列colorsのcssが当たっている為、はずれ記号と同じにする為に、cssのblackを付加させる必要がある。
+							$("#s"+i).addClass("black");
+						}
+						//全てはずれ記号と同じ状態で出力
+						$("#s"+i).text(dummy);
+					}
+				}, speed);
+			}
+
+			for(var i = 1; i <= chars.length; i++){
+				// テキスト入れ替え
+				$("#s"+i).text(chars[i -1]);
+			}
+			clear++;
+			if(clear == 4){
+				clearInterval(mm);
+				clear =1;
+			}
+		}
+		
+		// 配列シャッフル
+		function shuffle(array) {
+			//どうして変数nに代入するときに左辺がコンマ区切りしてあるのか？
+			var n = array.length, t, i;
+
+			//while文で繰り返し条件がどうしてnだけなのか？
+			//繰り返しの条件してって、i ＜ 10 とか なになにより大きくなったときなら分かるけど、nだけでいつ条件を満たしたか判断するのか？
+			while (n) {
+				i = Math.floor(Math.random() * n--);
+				t = array[n];
+				array[n] = array[i];
+				array[i] = t;
+			}
+			return array;
+		}
+		
+		// 色変え
+		function chgColor(id) {
+			//グローバル変数で指定してある配列colorsの順番をランダムで変更している。
+			colors = shuffle(colors);
+			//spanタグのidが乱数+1ならば、ランダムでシャッフルされたcolorsの0番目の色をつける。
+			$("#s"+id).addClass(colors[0]);
+		}
+		
+		// ゲーム初期化
+		function clearGame() {
+			level = 0;
+			MAX_LEVEL = games.length - 1;
+			DIM_FIRST = 5;
+			DIM_DELTA = 3;
+			dim = DIM_FIRST;
+			chars = [];
+			clear =1;
+			if (mm) clearInterval(mm);
+			idNumber = 1;
+			//いらない
+			//gameStartTimes =1;
+			mustFirst = -1;
+			mustSecond = -1;
+			mustThird = -1;
+			speed = 0;
+			colors = ["red", "blue", "green", "yellow", "purple"];
+			if (timeInterval) clearInterval(timeInterval);
+			timeCount = 0;
+		}
+	</script>
+</body>
+</html>
